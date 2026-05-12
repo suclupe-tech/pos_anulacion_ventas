@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+
+    <!-- HERENCIA POS ORDER -->
+    <record id="view_pos_order_form_anulacion" model="ir.ui.view">
+        <field name="name">pos.order.form.anulacion</field>
+        <field name="model">pos.order</field>
+        <field name="inherit_id" ref="point_of_sale.view_pos_pos_form"/>
+        <field name="arch" type="xml">
+
+            <!-- BOTON -->
+            <xpath expr="//form/header" position="inside">
+
+                <button name="action_anular_venta"
+                        type="object"
+                        string="Anular Venta"
+                        class="oe_highlight"
+                        groups="point_of_sale.group_pos_manager"
+                        invisible="venta_anulada or es_reversa_anulacion"/>
+
+            </xpath>
+
+            <!-- CAMPOS -->
+            <xpath expr="//page[@name='extra']/group" position="inside">
+
+                <group string="Control de Anulación">
+
+                    <field name="venta_anulada" readonly="1"/>
+                    <field name="motivo_anulacion" readonly="1"/>
+                    <field name="usuario_anulacion_id" readonly="1"/>
+                    <field name="fecha_anulacion" readonly="1"/>
+                    <field name="sunat_excluir_resumen" readonly="1"/>
+
+                </group>
+
+            </xpath>
+
+            <xpath expr="//field[@name='lines']" position="attributes">
+                <attribute name="readonly">es_reversa_anulacion</attribute>
+            </xpath>
+
+            <xpath expr="//field[@name='payment_ids']" position="attributes">
+                <attribute name="readonly">es_reversa_anulacion</attribute>
+            </xpath>
+
+        </field>
+    </record>
+
+    <record id="view_pos_order_form_ocultar_sunat_anuladas" model="ir.ui.view">
+        <field name="name">pos.order.form.ocultar.sunat.anuladas</field>
+        <field name="model">pos.order</field>
+        <field name="inherit_id" ref="point_of_sale.view_pos_pos_form"/>
+        <field name="arch" type="xml">
+
+            <xpath expr="//button[@name='action_generate_sunat_xml']" position="attributes">
+                <attribute name="invisible">sunat_document_type == 'NV' or venta_anulada</attribute>
+            </xpath>
+
+            <xpath expr="//button[@name='action_send_sunat']" position="attributes">
+                <attribute name="invisible">sunat_document_type == 'NV' or venta_anulada</attribute>
+            </xpath>
+
+            <xpath expr="//button[@name='action_send_pending_to_sunat']" position="attributes">
+                <attribute name="invisible">sunat_document_type == 'NV' or venta_anulada</attribute>
+            </xpath>
+
+            <xpath expr="//button[@name='action_generate_summary_rc']" position="attributes">
+                <attribute name="invisible">sunat_document_type == 'NV' or venta_anulada</attribute>
+            </xpath>
+
+        </field>
+    </record>
+
+    <record id="view_pos_order_list_anulacion_visual" model="ir.ui.view">
+        <field name="name">pos.order.list.anulacion.visual</field>
+        <field name="model">pos.order</field>
+        <field name="inherit_id" ref="point_of_sale.view_pos_order_tree"/>
+        <field name="arch" type="xml">
+
+            <xpath expr="//list" position="attributes">
+                <attribute name="decoration-muted">venta_anulada or es_reversa_anulacion</attribute>
+            </xpath>
+
+            <xpath expr="//field[@name='state']" position="after">
+                <field name="venta_anulada"/>
+                <field name="es_reversa_anulacion"/>
+            </xpath>
+
+        </field>
+    </record>
+
+    <record id="view_pos_order_search_anulacion_filters" model="ir.ui.view">
+        <field name="name">pos.order.search.anulacion.filters</field>
+        <field name="model">pos.order</field>
+        <field name="inherit_id" ref="point_of_sale.view_pos_order_filter"/>
+        <field name="arch" type="xml">
+
+            <xpath expr="//search" position="inside">
+
+                <separator/>
+
+                <filter string="Ventas Normales"
+                        name="ventas_normales"
+                        domain="[('venta_anulada', '=', False),
+                                ('es_reversa_anulacion', '=', False)]"/>
+
+                <filter string="Ventas Anuladas"
+                        name="ventas_anuladas"
+                        domain="[('venta_anulada', '=', True)]"/>
+
+                <filter string="Reversas"
+                        name="reversas"
+                        domain="[('es_reversa_anulacion', '=', True)]"/>
+
+            </xpath>
+
+        </field>
+    </record>
+
+</odoo>

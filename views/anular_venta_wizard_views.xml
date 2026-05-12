@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+
+    <record id="view_anular_venta_wizard_form" model="ir.ui.view">
+        <field name="name">pos.anular.venta.wizard.form</field>
+        <field name="model">pos.anular.venta.wizard</field>
+        <field name="arch" type="xml">
+
+            <form string="Anular Venta">
+
+                <group>
+                    <field name="pos_order_id" readonly="1"/>
+                    <field name="motivo"/>
+                </group>
+
+                <footer>
+
+                    <button name="action_confirmar_anulacion"
+                            type="object"
+                            string="Confirmar Anulación"
+                            class="oe_highlight"/>
+
+                    <button string="Cancelar"
+                            special="cancel"/>
+
+                </footer>
+
+            </form>
+
+        </field>
+    </record>
+
+</odoo>
