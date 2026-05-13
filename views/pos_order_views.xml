@@ -46,31 +46,6 @@
         </field>
     </record>
 
-    <record id="view_pos_order_form_ocultar_sunat_anuladas" model="ir.ui.view">
-        <field name="name">pos.order.form.ocultar.sunat.anuladas</field>
-        <field name="model">pos.order</field>
-        <field name="inherit_id" ref="point_of_sale.view_pos_pos_form"/>
-        <field name="arch" type="xml">
-
-            <xpath expr="//button[@name='action_generate_sunat_xml']" position="attributes">
-                <attribute name="invisible">sunat_document_type == 'NV' or venta_anulada</attribute>
-            </xpath>
-
-            <xpath expr="//button[@name='action_send_sunat']" position="attributes">
-                <attribute name="invisible">sunat_document_type == 'NV' or venta_anulada</attribute>
-            </xpath>
-
-            <xpath expr="//button[@name='action_send_pending_to_sunat']" position="attributes">
-                <attribute name="invisible">sunat_document_type == 'NV' or venta_anulada</attribute>
-            </xpath>
-
-            <xpath expr="//button[@name='action_generate_summary_rc']" position="attributes">
-                <attribute name="invisible">sunat_document_type == 'NV' or venta_anulada</attribute>
-            </xpath>
-
-        </field>
-    </record>
-
     <record id="view_pos_order_list_anulacion_visual" model="ir.ui.view">
         <field name="name">pos.order.list.anulacion.visual</field>
         <field name="model">pos.order</field>
