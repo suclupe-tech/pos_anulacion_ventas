@@ -10,7 +10,7 @@
 
                 <group>
                     <field name="pos_order_id" readonly="1"/>
-                    <field name="motivo"/>
+                    <field name="motivo" placeholder="Ingrese el motivo de la anulación..."/>
                 </group>
 
                 <footer>
