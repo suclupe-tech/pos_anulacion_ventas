@@ -16,7 +16,7 @@
                         string="Anular Venta"
                         class="oe_highlight"
                         groups="point_of_sale.group_pos_manager"
-                        invisible="venta_anulada or es_reversa_anulacion"/>
+                        invisible="venta_anulada or es_reversa_anulacion or session_id.state == 'closeg'"/>
 
             </xpath>
 

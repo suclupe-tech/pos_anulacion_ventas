@@ -49,7 +49,6 @@ class PosOrder(models.Model):
         self.ensure_one()
 
         sunat_state = getattr(self, "sunat_state", False)
-        sunat_cdr_code = getattr(self, "sunat_cdr_code", False)
 
         if sunat_state in [
             "aceptado",
@@ -78,7 +77,7 @@ class PosOrder(models.Model):
             raise UserError("Esta venta ya fue anulada anteriormente.")
 
         if self.session_id.state == "closed":
-            raise UserError("No se puede anular una venta de una sessión cerrada.")
+            raise UserError("No se puede anular una venta de una sesión cerrada.")
 
         if len(self.payment_ids) != 1:
             raise UserError(
@@ -108,12 +107,6 @@ class PosOrder(models.Model):
         )
 
         refund_order = self._refund()
-
-        if len(self.payment_ids) != 1:
-            raise UserError(
-                "La venta tiene múltiples métodos de pago. "
-                "No se puede anular automáticamente desde este módulo."
-            )
 
         original_payment = self.payment_ids[0]
 
