@@ -77,7 +77,20 @@ class PosOrder(models.Model):
             raise UserError("Esta venta ya fue anulada anteriormente.")
 
         if self.session_id.state == "closed":
-            raise UserError("No se puede anular una venta de una sesión cerrada.")
+
+            sesion_abierta_misma_caja = self.env["pos.session"].search(
+                [
+                    ("state", "=", "opened"),
+                    ("config_id", "=", self.config_id.id),
+                ],
+                limit=1,
+            )
+
+            if not sesion_abierta_misma_caja:
+                raise UserError(
+                    "No hay una sesión abierta de la misma caja/POS."
+                    "Abra la caja correspondiente para realizar la anulación."
+                )
 
         if len(self.payment_ids) != 1:
             raise UserError(
