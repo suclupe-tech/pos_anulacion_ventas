@@ -50,10 +50,7 @@ class PosOrder(models.Model):
 
         sunat_state = getattr(self, "sunat_state", False)
 
-        if sunat_state in [
-            "aceptado",
-            "accepted",
-        ]:
+        if sunat_state in ["aceptado", "accepted"]:
             raise UserError(
                 "No se puede anular este documento porque ya fue enviado o aceptado por SUNAT. "
                 "Debe manejarse con nota de crédito."
@@ -76,29 +73,6 @@ class PosOrder(models.Model):
         if self.venta_anulada:
             raise UserError("Esta venta ya fue anulada anteriormente.")
 
-        if self.session_id.state == "closed":
-
-            sesion_abierta_misma_caja = self.env["pos.session"].search(
-                [
-                    ("state", "=", "opened"),
-                    ("config_id", "=", self.config_id.id),
-                ],
-                limit=1,
-            )
-
-            if not sesion_abierta_misma_caja:
-                raise UserError(
-                    "No hay una sesión abierta de la misma caja/POS."
-                    "Abra la caja correspondiente para realizar la anulación."
-                )
-
-        if len(self.payment_ids) != 1:
-            raise UserError(
-                "La venta tiene múltiples métodos de pago. "
-                "No se puede anular automáticamente desde este módulo. "
-                "Debe revisarse manualmente por administración."
-            )
-
         sunat_state = getattr(self, "sunat_state", False)
 
         if sunat_state in ["aceptado", "accepted"]:
@@ -107,6 +81,32 @@ class PosOrder(models.Model):
                 "Debe manejarse con nota de crédito."
             )
 
+        if not self.payment_ids:
+            raise UserError("La venta no tiene pagos registrados para reversar.")
+
+        # =========================================================
+        # 1. DEFINIR EN QUÉ SESIÓN POS SE REGISTRARÁ LA ANULACIÓN
+        # =========================================================
+        session_refund = self.session_id
+
+        if self.session_id.state == "closed":
+            session_refund = self.env["pos.session"].search(
+                [
+                    ("state", "=", "opened"),
+                    ("config_id", "=", self.config_id.id),
+                ],
+                limit=1,
+            )
+
+            if not session_refund:
+                raise UserError(
+                    "No hay una sesión abierta de la misma caja/POS. "
+                    "Abra la caja correspondiente para realizar la anulación."
+                )
+
+        # =========================================================
+        # 2. MARCAR LA VENTA ORIGINAL COMO ANULADA
+        # =========================================================
         self.write(
             {
                 "venta_anulada": True,
@@ -119,25 +119,15 @@ class PosOrder(models.Model):
             }
         )
 
+        # =========================================================
+        # 3. CREAR ORDEN REVERSA
+        # =========================================================
         refund_order = self._refund()
-
-        original_payment = self.payment_ids[0]
-
-        refund_order.add_payment(
-            {
-                "name": "Anulación de venta %s" % self.name,
-                "pos_order_id": refund_order.id,
-                "amount": -abs(original_payment.amount),
-                "payment_date": fields.Datetime.now(),
-                "payment_method_id": original_payment.payment_method_id.id,
-            }
-        )
-
-        refund_order.action_pos_order_paid()
-        refund_order._create_order_picking()
 
         refund_order.write(
             {
+                "session_id": session_refund.id,
+                "config_id": session_refund.config_id.id,
                 "es_reversa_anulacion": True,
                 "orden_original_anulada_id": self.id,
                 "sunat_excluir_resumen": True,
@@ -148,13 +138,47 @@ class PosOrder(models.Model):
             }
         )
 
+        # =========================================================
+        # 4. CREAR PAGOS NEGATIVOS POR CADA MEDIO DE PAGO ORIGINAL
+        # =========================================================
+        for original_payment in self.payment_ids:
+            if not original_payment.amount:
+                continue
+
+            refund_order.add_payment(
+                {
+                    "name": "Anulación de venta %s - %s"
+                    % (self.name, original_payment.payment_method_id.name),
+                    "pos_order_id": refund_order.id,
+                    "amount": -abs(original_payment.amount),
+                    "payment_date": fields.Datetime.now(),
+                    "payment_method_id": original_payment.payment_method_id.id,
+                    "session_id": session_refund.id,
+                }
+            )
+
+        # =========================================================
+        # 5. VALIDAR LA ORDEN REVERSA Y DEVOLVER STOCK
+        # =========================================================
+        refund_order.action_pos_order_paid()
+        refund_order._create_order_picking()
+
+        # =========================================================
+        # 6. RELACIONAR VENTA ORIGINAL CON SU REVERSA
+        # =========================================================
         self.write(
             {
                 "orden_reversa_id": refund_order.id,
             }
         )
 
-        self.message_post(body="Venta anulada mediante control interno POS.")
+        self.message_post(
+            body="Venta anulada mediante control interno POS con reversa por medios de pago."
+        )
+
+        refund_order.message_post(
+            body="Reversa interna generada por anulación de la venta %s." % self.name
+        )
 
         return {
             "type": "ir.actions.client",
