@@ -6,6 +6,7 @@
     "depends": [
         "point_of_sale",
         "pos_sunat_direct",
+        "pos_stock_control",
     ],
     "data": [
         "security/ir.model.access.csv",

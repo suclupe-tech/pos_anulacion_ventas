@@ -1,5 +1,6 @@
 from odoo import models, fields
 from odoo.exceptions import UserError
+from collections import defaultdict
 
 
 class PosOrder(models.Model):
@@ -66,6 +67,102 @@ class PosOrder(models.Model):
                 "default_pos_order_id": self.id,
             },
         }
+
+    # ============================================================
+    # RESTAURAR STOCK COMERCIAL DE OFERTA
+    #
+    # Se ejecuta después de que la reversa ya devolvió físicamente
+    # las prendas al almacén.
+    #
+    # Solo vuelve a la bolsa de oferta cuando:
+    # - La línea original fue vendida como oferta.
+    # - La asignación de oferta sigue activa.
+    # - La oferta sigue vigente.
+    #
+    # Si la oferta terminó o fue desactivada, la prenda queda
+    # disponible como stock regular.
+    # ============================================================
+
+    def _restore_offer_stock_after_cancellation(self):
+        self.ensure_one()
+
+        picking_type = self.config_id.picking_type_id
+        warehouse = picking_type.warehouse_id if picking_type else False
+
+        if not warehouse:
+            return
+
+        # Agrupar cantidades de oferta por modelo.
+        quantities_by_template = defaultdict(float)
+
+        for line in self.lines:
+            if not line.is_offer_sale:
+                continue
+
+            if not line.product_id or line.qty <= 0:
+                continue
+
+            template = line.product_id.product_tmpl_id
+            quantities_by_template[template.id] += line.qty
+
+        if not quantities_by_template:
+            return
+
+        templates = self.env["product.template"].browse(
+            list(quantities_by_template.keys())
+        )
+
+        for template in templates:
+            qty_to_restore = quantities_by_template[template.id]
+
+            # Reutilizamos el bloqueo FOR UPDATE del control de stock
+            # para evitar conflictos con ventas simultáneas.
+            allocation, current_offer_qty = self._get_locked_offer_allocation(
+                warehouse,
+                template,
+            )
+
+            # Si la oferta fue desactivada, no volvemos a reservar.
+            if not allocation:
+                self.message_post(
+                    body=(
+                        "La anulación devolvió %.2f unidad(es) de %s "
+                        "al stock físico, pero no se restituyeron a oferta "
+                        "porque la oferta ya no está activa."
+                    )
+                    % (qty_to_restore, template.display_name)
+                )
+                continue
+
+            # Si la oferta venció o todavía no está vigente,
+            # la prenda debe quedar como stock regular.
+            validity_error = self._get_offer_validity_error(allocation)
+
+            if validity_error:
+                self.message_post(
+                    body=(
+                        "La anulación devolvió %.2f unidad(es) de %s "
+                        "al stock físico, pero no se restituyeron a oferta "
+                        "porque la vigencia ya no permite utilizarla."
+                    )
+                    % (qty_to_restore, template.display_name)
+                )
+                continue
+
+            # Restituir la cantidad comercial.
+            allocation.write(
+                {
+                    "quantity": allocation.quantity + qty_to_restore,
+                }
+            )
+
+            # Registrar también el motivo en el chatter de la oferta.
+            allocation.message_post(
+                body=(
+                    "Se restituyeron %.2f unidad(es) por anulación " "de la venta %s."
+                )
+                % (qty_to_restore, self.name)
+            )
 
     def action_confirmar_anulacion(self, motivo):
         self.ensure_one()
@@ -162,6 +259,11 @@ class PosOrder(models.Model):
         # =========================================================
         refund_order.action_pos_order_paid()
         refund_order._create_order_picking()
+
+        # =========================================================
+        # RESTAURAR STOCK COMERCIAL DE OFERTA
+        # =========================================================
+        self._restore_offer_stock_after_cancellation()
 
         # =========================================================
         # 6. RELACIONAR VENTA ORIGINAL CON SU REVERSA
